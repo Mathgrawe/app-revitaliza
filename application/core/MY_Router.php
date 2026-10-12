@@ -2,85 +2,57 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Suporte a módulos (HMVC simples)
+ * Router com suporte a módulos em application/modules/<modulo>/controllers.
  *
- * Estrutura: application/modules/<modulo>/{controllers,models,views,libraries,helpers,config}
- *
- * URLs:
- *   /<modulo>                    -> modules/<modulo>/controllers/<Modulo>.php -> index()
- *   /<modulo>/<metodo>           -> modules/<modulo>/controllers/<Modulo>.php -> <metodo>()
- *   /<modulo>/<controller>/<m>   -> modules/<modulo>/controllers/<Controller>.php -> <m>()
- *
- * Se não existir módulo com o nome do 1º segmento, segue o fluxo normal (application/controllers).
+ * URL /landing         -> modules/landing/controllers/Landing.php
+ * URL /landing/foo     -> modules/landing/controllers/Foo.php (se existir)
+ *                         ou Landing::foo()
+ * default_controller   -> pode apontar para um módulo (ex.: 'landing')
  */
 class MY_Router extends CI_Router {
 
-	/**
-	 * Módulo da requisição atual ('' quando não é um módulo)
-	 *
-	 * @var string
-	 */
-	public $module = '';
+	protected function _module_controller($module, $class)
+	{
+		$dir = '../modules/'.$module.'/controllers/';
+		return file_exists(APPPATH.'controllers/'.$dir.ucfirst($class).'.php') ? $dir : FALSE;
+	}
 
 	protected function _set_default_controller()
 	{
 		if (sscanf($this->default_controller, '%[^/]/%s', $class, $method) !== 2)
 		{
-			$method = 'index';
+			$class = $this->default_controller;
 		}
 
-		$this->_localizar_modulo(array($class, $method));
+		if ( ! file_exists(APPPATH.'controllers/'.ucfirst($class).'.php')
+			&& ($dir = $this->_module_controller($class, $class)) !== FALSE)
+		{
+			$this->directory = $dir;
+		}
 
 		parent::_set_default_controller();
 	}
 
 	protected function _validate_request($segments)
 	{
-		$localizado = $this->_localizar_modulo($segments);
-
-		return ($localizado !== FALSE) ? $localizado : parent::_validate_request($segments);
-	}
-
-	/**
-	 * Procura um módulo para os segmentos informados
-	 *
-	 * @param	array	$segments
-	 * @return	array|bool	segmentos a partir do controller, ou FALSE
-	 */
-	protected function _localizar_modulo($segments)
-	{
-		if (empty($segments[0]))
+		if (isset($segments[0]) && ! isset($this->directory)
+			&& ! file_exists(APPPATH.'controllers/'.ucfirst($segments[0]).'.php'))
 		{
-			return FALSE;
+			$module = $segments[0];
+
+			if (isset($segments[1]) && ($dir = $this->_module_controller($module, $segments[1])) !== FALSE)
+			{
+				$this->directory = $dir;
+				return array_slice($segments, 1);
+			}
+
+			if (($dir = $this->_module_controller($module, $module)) !== FALSE)
+			{
+				$this->directory = $dir;
+				return $segments;
+			}
 		}
 
-		$module = str_replace('-', '_', $segments[0]);
-		$path   = APPPATH.'modules/'.$module.'/controllers/';
-
-		if ( ! is_dir($path))
-		{
-			return FALSE;
-		}
-
-		// O CodeIgniter monta o caminho como APPPATH.'controllers/'.$directory
-		$directory = '../modules/'.$module.'/controllers/';
-
-		// modulo/controller/metodo
-		if (isset($segments[1]) && file_exists($path.ucfirst(str_replace('-', '_', $segments[1])).'.php'))
-		{
-			$this->module    = $module;
-			$this->directory = $directory;
-			return array_slice($segments, 1);
-		}
-
-		// modulo/metodo (controller com o mesmo nome do módulo)
-		if (file_exists($path.ucfirst($module).'.php'))
-		{
-			$this->module    = $module;
-			$this->directory = $directory;
-			return $segments;
-		}
-
-		return FALSE;
+		return parent::_validate_request($segments);
 	}
 }

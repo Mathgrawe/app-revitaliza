@@ -6,20 +6,17 @@ class Landing extends CI_Controller {
 	public function __construct()
 	{
 		parent::__construct();
-		$this->load->model('landing_model');
+		// Faz o loader enxergar modules/landing/views e modules/landing/config
+		$this->load->add_package_path(APPPATH.'modules/landing/');
 	}
 
 	public function index()
 	{
-		$data = array(
-			'title'      => 'iParts - Conectando pessoas às oficinas',
-			'styles'     => array('assets/landing/css/landing.css'),
-			'scripts'    => array('assets/landing/js/landing.js'),
-			'beneficios' => $this->landing_model->listar_beneficios(),
-			'categorias' => $this->landing_model->listar_categorias(),
-			'categoria_ativa' => 'freio',
-		);
+		// Caminho relativo à raiz do app: funciona em subpasta, com ou sem base_url configurado
+		$root = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
 
-		$this->load->view('index', $data);
+		$this->load->view('landing', array(
+			'assets' => $root.'/assets/landing/',
+		));
 	}
 }
